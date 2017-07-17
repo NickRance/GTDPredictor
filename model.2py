@@ -1,0 +1,79 @@
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from keras.utils import np_utils
+from sklearn.preprocessing import LabelEncoder
+from keras.models import Sequential
+from keras.layers import Dropout, Flatten, Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import LabelEncoder
+from sklearn.pipeline import Pipeline
+
+import config
+from pprint import pprint
+
+
+# load dataset
+dataset = pd.read_csv('data/GTD_FULL_KNOWNATTACKS_FILTERED.csv', index_col=0, sep=',', dtype='unicode')
+# print(set(sorted(dataset['gname'])))
+dataset.drop('resolution', axis=1, inplace=True)
+# dataset=dataset.apply(pd.to_numeric, errors='ignore')
+# print(dataset)
+# print(dataset['nkill'].corr(dataset['ransomamt']))
+# pprint(dataset.corr())
+y = dataset['gname']
+
+def codifyGname(gnameList):
+	gCode = []
+	dict = config.generateDict()
+	for gname in gnameList:
+		gCode.append(dict[gname])
+	return gCode
+# print(y)
+y = codifyGname(y)
+inputY = pd.DataFrame(np.array(y).reshape(len(y),1), columns = ['gcode']).as_matrix()
+# print(inputY)
+#TODO: Remove resolution in the filter in app.py
+inputX = dataset.drop('gname', axis=1).as_matrix()
+print(inputX.shape) #92044,72
+# Parameters
+learning_rate = 0.1
+training_epochs = 2000
+display_step = 50
+n_samples = inputY.size
+x = tf.placeholder(tf.float32, [None, 72])
+W = tf.Variable(tf.zeros([72, 1]))
+b = tf.Variable(tf.zeros([72]))
+y_values = tf.add(tf.matmul(x, W), b)
+y = tf.nn.softmax(y_values)
+y_ = tf.placeholder(tf.float32, [None,1])
+
+# Cost function: Mean squared error
+cost = tf.reduce_sum(tf.pow(y_ - y, 2))/(2*n_samples)
+# Gradient descent
+optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+
+
+# Initialize variabls and tensorflow session
+init = tf.initialize_all_variables()
+sess = tf.Session()
+sess.run(init)
+
+# pprint(inputX)
+# pprint(inputY)
+
+for i in range(training_epochs):
+	# print(inputX.shape)  # 92044,72
+	sess.run(optimizer, feed_dict={x: inputX, y_: inputY}) # Take a gradient descent step using our inputs and labels
+    # That's all! The rest of the cell just outputs debug messages.
+    # Display logs per epoch step
+	if (i) % display_step == 0:
+		cc = sess.run(cost, feed_dict={x: inputX, y_:inputY})
+		print("cost is " + str(cost))
+		print ("Training step:", '%04d' % (i), "cost=", "{:.9f}".format(cc) )#, \"W=", sess.run(W), "b=", sess.run(b)
+
+print ("Optimization Finished!")
+training_cost = sess.run(cost, feed_dict={x: inputX, y_: inputY})
+print ("Training cost=", training_cost, "W=", sess.run(W), "b=", sess.run(b), '\n')
